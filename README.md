@@ -1,4 +1,4 @@
-# 🧳 全域旅游规划助手 (FDE 课程设计)
+# 🧳 全域旅游规划助手
 
 基于 **Streamlit + 大语言模型 + 工具调用 (Function Calling)** 的智能旅游规划 AI Agent。
 
@@ -46,7 +46,7 @@ tra1/
 ### 1. 安装依赖
 
 ```bash
-cd C:\Users\W1501\Desktop\tra1
+cd <项目根目录>
 pip install -r requirements.txt
 ```
 
@@ -157,19 +157,15 @@ streamlit run app.py
 
 ---
 
-## 📝 评分对照（教师模板）
+## 🏗️ 项目架构
 
-| 教师考核项 | 分值 | 本项目实现 |
-|----------|------|----------|
-| 需求分析 | 10 分 | README 中"核心功能"+"使用示例" |
-| 技术选型 | 10 分 | README 中"技术栈说明"+"API Key 获取指引" |
-| 环境搭建 | 10 分 | `requirements.txt` + `.env.example` + `run.bat` |
-| 系统架构 | 8 分 | 三层架构：表现层(UI) → 逻辑层(Agent+LLM) → 数据层(Tools) |
-| LLM 对话 | 8 分 | `src/llm_client.py` 流式 + System Prompt + 异常处理 |
-| 天气工具 | 8 分 | `src/tools/weather.py` 中文 + 结构化JSON + 异常处理 |
-| POI 工具 | 8 分 | `src/tools/poi.py` 双源降级 + 关键词 + 结构化列表 |
-| Streamlit 前端 | 8 分 | `src/ui.py` + `app.py` 侧边栏+聊天+工具可视化 |
-| 工具调用循环 | — | `src/agent.py` MAX_TOOL_ROUNDS=4 防死循环 |
+采用经典三层架构：表现层（Streamlit UI）→ 逻辑层（Agent + LLM 引擎）→ 数据层（外部 API 服务）。
+
+| 层级 | 模块 | 职责 |
+|------|------|------|
+| 表现层 | `src/ui.py` + `app.py` | 侧边栏配置、聊天界面、工具调用可视化 |
+| 逻辑层 | `src/agent.py` + `src/llm_client.py` | 多轮对话管理、工具调用循环、流式输出 |
+| 数据层 | `src/tools/weather.py` + `src/tools/poi.py` | wttr.in 天气、腾讯+百度 POI 双源检索 |
 
 ---
 
@@ -191,4 +187,4 @@ A: 部分模型（如 gpt-3.5-turbo）对工具调用支持较弱，建议使用
 
 ## 📜 License
 
-仅用于 FDE 课程设计学习用途。
+MIT License - 详见 LICENSE 文件。
