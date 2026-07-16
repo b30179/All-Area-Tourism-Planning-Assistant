@@ -1,4 +1,3 @@
-[README.md](https://github.com/user-attachments/files/30077891/README.md)
 # 🧳 全域旅游规划助手 (FDE 课程设计)
 
 基于 **Streamlit + 大语言模型 + 工具调用 (Function Calling)** 的智能旅游规划 AI Agent。
