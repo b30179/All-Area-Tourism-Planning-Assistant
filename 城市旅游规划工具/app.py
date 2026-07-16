@@ -57,7 +57,7 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded",
     menu_items={
-        "About": "FDE 课程设计 - 全域旅游规划助手 v1.0",
+        "About": "全域旅游规划助手 v1.0",
     },
 )
 
