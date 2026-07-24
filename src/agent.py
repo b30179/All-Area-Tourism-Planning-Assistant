@@ -174,6 +174,22 @@ def run_agent_stream(
 
         yield {"type": "tool_done", "round": rounds}
 
+        # 如果本轮有任何工具返回了错误，注入系统提醒，防止 LLM 编造数据
+        failed_names = set()
+        for tid, tname, tcontent in tool_results:
+            is_err, _ = _check_tool_error(tcontent)
+            if is_err:
+                failed_names.add(tname)
+        if failed_names:
+            reminder = (
+                "以下工具在本轮返回了错误："
+                + "、".join(sorted(failed_names))
+                + "。你**绝对不能**用自己的知识编造这些工具本该返回的数据"
+                  "（如景点名称、餐厅名称、地址等）。"
+                  "请如实告知用户这些信息暂不可用，并只基于成功返回的数据作答。"
+            )
+            messages.append({"role": "system", "content": reminder})
+
         # 达到上限，停止循环
         if rounds >= max_rounds:
             logger.warning("达到 MAX_TOOL_ROUNDS=%d 上限，强制结束", max_rounds)
