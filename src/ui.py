@@ -150,6 +150,8 @@ def render_sidebar(env_llm: LLMConfig, env_tool: ToolConfig) -> tuple[LLMConfig,
         # ---- 地图 API 配置 ----
         st.subheader("🗺️ 地图 API（POI 检索需要至少配一个）")
 
+        # 腾讯 LBS Key
+        tencent_from_env = bool(env_tool.tencent_lbs_key)
         tencent_key = st.text_input(
             "腾讯 LBS Key",
             value=env_tool.tencent_lbs_key,
@@ -157,7 +159,15 @@ def render_sidebar(env_llm: LLMConfig, env_tool: ToolConfig) -> tuple[LLMConfig,
             help="https://lbs.qq.com/ → 创建 WebService 应用 → 启用地点搜索",
             placeholder="XXXXX-XXXXX-XXXXX",
         )
+        if tencent_from_env and tencent_key == env_tool.tencent_lbs_key:
+            st.caption(f"✅ 已从 .env 加载（{env_tool.tencent_lbs_key[:8]}***）")
+        elif tencent_key.strip():
+            st.caption("📝 手动输入")
+        else:
+            st.caption("⬜ 未配置")
 
+        # 百度地图 AK
+        baidu_from_env = bool(env_tool.baidu_map_ak)
         baidu_ak = st.text_input(
             "百度地图 AK",
             value=env_tool.baidu_map_ak,
@@ -165,14 +175,23 @@ def render_sidebar(env_llm: LLMConfig, env_tool: ToolConfig) -> tuple[LLMConfig,
             help="https://lbsyun.baidu.com/ → 创建服务端应用 → 获得 AK",
             placeholder="你的百度 AK",
         )
+        if baidu_from_env and baidu_ak == env_tool.baidu_map_ak:
+            st.caption(f"✅ 已从 .env 加载（{env_tool.baidu_map_ak[:8]}***）")
+        elif baidu_ak.strip():
+            st.caption("📝 手动输入")
+        else:
+            st.caption("⬜ 未配置")
 
-        if not tencent_key.strip() and not baidu_ak.strip():
+        # 汇总状态
+        has_tencent = bool(tencent_key.strip())
+        has_baidu = bool(baidu_ak.strip())
+        if not has_tencent and not has_baidu:
             st.warning("⚠️ 未配置地图 Key，POI 检索不可用", icon="⚠️")
         else:
             sources = []
-            if tencent_key.strip():
+            if has_tencent:
                 sources.append("腾讯")
-            if baidu_ak.strip():
+            if has_baidu:
                 sources.append("百度")
             st.success(f"✅ 已配置 {' + '.join(sources)} 地图服务", icon="✅")
 

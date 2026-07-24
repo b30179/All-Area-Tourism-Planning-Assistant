@@ -79,6 +79,10 @@ def search_poi(
     cfg = config or ToolConfig()
     timeout = cfg.http_timeout
 
+    # 用于收集详细的失败原因
+    tencent_reason = None
+    baidu_reason = None
+
     # 1) 优先腾讯位置服务
     if cfg.tencent_lbs_key:
         try:
@@ -91,9 +95,13 @@ def search_poi(
             )
             if result is not None:
                 return json.dumps(result, ensure_ascii=False)
+            tencent_reason = "腾讯地图返回空结果（可能该区域无匹配 POI）"
             logger.warning("腾讯 POI 检索返回空，回退到百度地图")
         except Exception as e:
+            tencent_reason = f"腾讯地图调用异常：{e!s}"
             logger.warning("腾讯 POI 检索异常: %s，回退到百度地图", e)
+    else:
+        tencent_reason = "未配置 TENCENT_LBS_KEY"
 
     # 2) 兜底百度地图
     if cfg.baidu_map_ak:
@@ -107,18 +115,20 @@ def search_poi(
             )
             if result is not None:
                 return json.dumps(result, ensure_ascii=False)
+            baidu_reason = "百度地图返回空结果"
             logger.warning("百度 POI 检索返回空")
         except Exception as e:
+            baidu_reason = f"百度地图调用异常：{e!s}"
             logger.error("百度 POI 检索异常: %s", e)
+    else:
+        baidu_reason = "未配置 BAIDU_MAP_AK"
 
-    # 3) 两家都失败
+    # 3) 两家都失败 — 给出详细原因
     error_msg = []
-    if not cfg.tencent_lbs_key:
-        error_msg.append("未配置 TENCENT_LBS_KEY")
-    if not cfg.baidu_map_ak:
-        error_msg.append("未配置 BAIDU_MAP_AK")
-    if not error_msg:
-        error_msg.append("两家地图服务均无可用结果")
+    if tencent_reason:
+        error_msg.append(f"腾讯：{tencent_reason}")
+    if baidu_reason:
+        error_msg.append(f"百度：{baidu_reason}")
 
     return json.dumps(
         {"error": "POI 检索失败：" + "；".join(error_msg)},
@@ -149,8 +159,12 @@ def _search_tencent(
     data = resp.json()
 
     # 腾讯返回 status: 0 表示成功
-    if data.get("status") != 0:
-        logger.warning("腾讯 POI 接口返回错误: %s", data.get("message"))
+    status_code = data.get("status")
+    if status_code != 0:
+        logger.warning(
+            "腾讯 POI 接口返回错误 [status=%s]: %s (key=%s***)",
+            status_code, data.get("message", "未知错误"), api_key[:8],
+        )
         return None
 
     pois_raw = data.get("data", [])
