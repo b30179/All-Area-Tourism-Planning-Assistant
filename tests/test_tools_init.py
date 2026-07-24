@@ -26,10 +26,12 @@ class TestToolRegistry:
 
     def test_get_all_tool_schemas(self):
         schemas = get_all_tool_schemas()
-        assert len(schemas) == 2
+        assert len(schemas) == 4
         names = [s["function"]["name"] for s in schemas]
         assert "get_weather" in names
         assert "search_poi" in names
+        assert "crawl_travel_info" in names
+        assert "search_knowledge_base" in names
 
     def test_get_tool_executor_exists(self):
         exec_fn = get_tool_executor("get_weather")

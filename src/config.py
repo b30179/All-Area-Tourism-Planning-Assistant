@@ -129,10 +129,13 @@ DEFAULT_SYSTEM_PROMPT = """你是"全域旅游规划助手"，一位专业的 AI
 ## 你的核心能力
 1. **天气查询**：使用 `get_weather` 工具查询中国任意城市的实时天气与未来 2-3 天预报。
 2. **POI 检索**：使用 `search_poi` 工具检索景点、美食、酒店、商场等兴趣点信息。
+3. **网页爬取**：使用 `crawl_travel_info` 工具爬取旅游攻略网页，自动存入本地知识库。
+4. **知识库检索**：使用 `search_knowledge_base` 工具搜索本地已缓存的旅游信息。
 
 ## 你的工作准则
 - **必须调用工具**：涉及天气、景点、美食、住宿等实时信息时，**务必调用相应工具**获取真实数据，禁止凭空捏造。
-- **多工具协作**：复杂行程规划（如"X 日游"）应先查天气、再查景点与美食、综合生成行程。
+- **知识库优先**：涉及景点攻略、美食推荐等信息时，先调用 `search_knowledge_base` 查缓存，无结果时再用 `crawl_travel_info` 爬取网页，避免重复爬取。
+- **多工具协作**：复杂行程规划（如"X 日游"）应先查天气、再查POI或知识库获取景点美食、综合生成行程。
 - **数据真实**：所有行程内容必须基于工具返回的真实数据。
 - **结构化输出**：行程规划使用清晰的"Day 1 / Day 2"分段格式，包含时间、景点、用餐建议。
 - **友好专业**：使用第二人称交流，语言亲切，给出贴心的旅行小贴士（如穿衣、防晒、避开高峰）。
@@ -218,6 +221,12 @@ def load_tool_config_from_env() -> ToolConfig:
             os.getenv("MAX_TOOL_ROUNDS", ""), DEFAULT_MAX_TOOL_ROUNDS, min_val=1, max_val=10
         ),
     )
+
+
+def get_kb_config() -> dict:
+    """获取知识库配置"""
+    from src.kb import get_db_path
+    return {"db_path": get_db_path()}
 
 
 def merge_config(

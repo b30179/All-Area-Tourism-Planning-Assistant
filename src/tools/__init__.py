@@ -13,7 +13,9 @@ import logging
 from typing import Any, Callable, Dict
 
 from src.config import ToolConfig
+from src.tools.crawler import CRAWL_TOOL_SCHEMA, crawl_travel_info
 from src.tools.poi import POI_TOOL_SCHEMA, search_poi
+from src.tools.search_kb import SEARCH_KB_SCHEMA, search_knowledge_base
 from src.tools.weather import WEATHER_TOOL_SCHEMA, get_weather
 
 logger = logging.getLogger(__name__)
@@ -84,6 +86,21 @@ TOOL_REGISTRY: Dict[str, Dict[str, Any]] = {
             optional_args={"page_size": 10},
         ),
     },
+    "crawl_travel_info": {
+        "schema": CRAWL_TOOL_SCHEMA,
+        "executor": _make_executor(
+            func=crawl_travel_info,
+            required_args=["url", "category"],
+        ),
+    },
+    "search_knowledge_base": {
+        "schema": SEARCH_KB_SCHEMA,
+        "executor": _make_executor(
+            func=search_knowledge_base,
+            required_args=["query"],
+            optional_args={"category": None, "limit": 5},
+        ),
+    },
 }
 
 
@@ -104,6 +121,10 @@ __all__ = [
     "get_tool_executor",
     "WEATHER_TOOL_SCHEMA",
     "POI_TOOL_SCHEMA",
+    "CRAWL_TOOL_SCHEMA",
+    "SEARCH_KB_SCHEMA",
     "get_weather",
     "search_poi",
+    "crawl_travel_info",
+    "search_knowledge_base",
 ]

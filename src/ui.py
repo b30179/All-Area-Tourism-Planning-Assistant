@@ -33,6 +33,8 @@ from src.config import (
 TOOL_DISPLAY_NAMES = {
     "get_weather": ("🌤️ 天气查询", "查询城市的实时天气与未来 2-3 天预报"),
     "search_poi": ("📍 POI 检索", "检索景点、美食、酒店等兴趣点"),
+    "crawl_travel_info": ("🕷️ 网页爬取", "爬取旅游攻略网页，清洗并存入知识库"),
+    "search_knowledge_base": ("📚 知识库检索", "搜索本地已爬取的旅游信息"),
 }
 
 
