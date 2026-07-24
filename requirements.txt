@@ -1,0 +1,7 @@
+# 全域旅游规划助手 - 依赖清单
+# Python >= 3.10 推荐
+
+streamlit>=1.32.0
+openai>=1.30.0
+requests>=2.31.0
+python-dotenv>=1.0.0
