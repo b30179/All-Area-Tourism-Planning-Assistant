@@ -23,6 +23,7 @@ from src.config import (
     LLM_PROVIDERS,
     DEFAULT_LLM_PROVIDER,
     LLMConfig,
+    ToolConfig,
 )
 
 
@@ -43,12 +44,13 @@ def get_tool_pretty_name(tool_name: str) -> tuple[str, str]:
 # ============================================================
 # 侧边栏
 # ============================================================
-def render_sidebar(env_config: LLMConfig) -> LLMConfig:
+def render_sidebar(env_llm: LLMConfig, env_tool: ToolConfig) -> tuple[LLMConfig, ToolConfig]:
     """
-    渲染侧边栏配置面板，返回最终生效的 LLMConfig
+    渲染侧边栏配置面板，返回最终生效的 LLMConfig 与 ToolConfig
 
-    :param env_config: 从 .env / 默认值加载的基础配置
-    :return: UI 覆盖后的最终 LLMConfig
+    :param env_llm: 从 .env / 默认值加载的 LLM 基础配置
+    :param env_tool: 从 .env / 默认值加载的工具基础配置
+    :return: (UI 覆盖后的 LLMConfig, UI 覆盖后的 ToolConfig)
     """
     # 初始化 provider 状态
     if "selected_provider" not in st.session_state:
@@ -82,7 +84,7 @@ def render_sidebar(env_config: LLMConfig) -> LLMConfig:
 
         api_key = st.text_input(
             "API Key",
-            value=env_config.api_key,
+            value=env_llm.api_key,
             type="password",
             help="所选服务商的 API Key",
             placeholder="sk-...",
@@ -92,7 +94,7 @@ def render_sidebar(env_config: LLMConfig) -> LLMConfig:
         if provider_name == "🛠️ 自定义（Custom）":
             base_url = st.text_input(
                 "Base URL",
-                value=env_config.base_url,
+                value=env_llm.base_url,
                 help="OpenAI 兼容 API 的完整 base_url，例如 https://api.example.com/v1",
                 placeholder="https://api.example.com/v1",
             )
@@ -107,13 +109,13 @@ def render_sidebar(env_config: LLMConfig) -> LLMConfig:
         if provider_name == "🛠️ 自定义（Custom）":
             model = st.text_input(
                 "模型名称",
-                value=env_config.model,
+                value=env_llm.model,
                 placeholder="例如：gpt-4o-mini",
             )
         else:
             available_models = provider_info["models"]
             # 如果当前 model 在列表中则保留，否则用默认
-            current_model = env_config.model if env_config.model in available_models else provider_info["default_model"]
+            current_model = env_llm.model if env_llm.model in available_models else provider_info["default_model"]
             model = st.selectbox(
                 "模型",
                 options=available_models,
@@ -130,7 +132,7 @@ def render_sidebar(env_config: LLMConfig) -> LLMConfig:
             "Temperature",
             min_value=0.0,
             max_value=2.0,
-            value=env_config.temperature or DEFAULT_TEMPERATURE,
+            value=env_llm.temperature or DEFAULT_TEMPERATURE,
             step=0.05,
             help="越高越有创造性，越低越稳定",
         )
@@ -139,9 +141,40 @@ def render_sidebar(env_config: LLMConfig) -> LLMConfig:
             "Max Tokens",
             min_value=100,
             max_value=8000,
-            value=env_config.max_tokens or DEFAULT_MAX_TOKENS,
+            value=env_llm.max_tokens or DEFAULT_MAX_TOKENS,
             step=100,
         )
+
+        st.divider()
+
+        # ---- 地图 API 配置 ----
+        st.subheader("🗺️ 地图 API（POI 检索需要至少配一个）")
+
+        tencent_key = st.text_input(
+            "腾讯 LBS Key",
+            value=env_tool.tencent_lbs_key,
+            type="password",
+            help="https://lbs.qq.com/ → 创建 WebService 应用 → 启用地点搜索",
+            placeholder="XXXXX-XXXXX-XXXXX",
+        )
+
+        baidu_ak = st.text_input(
+            "百度地图 AK",
+            value=env_tool.baidu_map_ak,
+            type="password",
+            help="https://lbsyun.baidu.com/ → 创建服务端应用 → 获得 AK",
+            placeholder="你的百度 AK",
+        )
+
+        if not tencent_key.strip() and not baidu_ak.strip():
+            st.warning("⚠️ 未配置地图 Key，POI 检索不可用", icon="⚠️")
+        else:
+            sources = []
+            if tencent_key.strip():
+                sources.append("腾讯")
+            if baidu_ak.strip():
+                sources.append("百度")
+            st.success(f"✅ 已配置 {' + '.join(sources)} 地图服务", icon="✅")
 
         st.divider()
 
@@ -172,16 +205,24 @@ def render_sidebar(env_config: LLMConfig) -> LLMConfig:
                 st.rerun()
 
         st.divider()
-        st.caption("💡 提示：API Key 优先级 侧边栏 > .env 文件")
+        st.caption("💡 提示：侧边栏输入优先于 .env 文件")
 
     # 返回合并后的配置
-    return LLMConfig(
+    final_llm = LLMConfig(
         api_key=api_key.strip(),
         base_url=base_url.strip() or DEFAULT_LLM_BASE_URL,
         model=model.strip() or DEFAULT_LLM_MODEL,
         temperature=temperature,
         max_tokens=int(max_tokens),
     )
+    final_tool = ToolConfig(
+        tencent_lbs_key=tencent_key.strip(),
+        baidu_map_ak=baidu_ak.strip(),
+        weather_timeout=env_tool.weather_timeout,
+        http_timeout=env_tool.http_timeout,
+        max_tool_rounds=env_tool.max_tool_rounds,
+    )
+    return final_llm, final_tool
 
 
 # ============================================================

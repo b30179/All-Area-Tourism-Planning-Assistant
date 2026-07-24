@@ -73,8 +73,8 @@ def main() -> None:
     # 2) 渲染顶部
     render_header()
 
-    # 3) 渲染侧边栏（返回 UI 覆盖后的 LLMConfig）
-    final_llm_config = render_sidebar(env_llm_config)
+    # 3) 渲染侧边栏（返回 UI 覆盖后的 LLMConfig + ToolConfig）
+    final_llm_config, final_tool_config = render_sidebar(env_llm_config, env_tool_config)
 
     # 4) 初始化 session_state
     ensure_session_state()
@@ -127,8 +127,8 @@ def main() -> None:
                 client=client,
                 messages=messages,
                 llm_config=final_llm_config,
-                tool_config=env_tool_config,
-                max_rounds=env_tool_config.max_tool_rounds,
+                tool_config=final_tool_config,
+                max_rounds=final_tool_config.max_tool_rounds,
             ):
                 event_type = event.get("type")
                 logger.debug(f"[Agent Event] type={event_type}, keys={list(event.keys())}")
