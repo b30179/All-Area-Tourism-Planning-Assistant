@@ -2,7 +2,7 @@
 
 基于 **Streamlit + 大语言模型 + 工具调用 (Function Calling)** 的智能旅游规划 AI Agent。
 
-用户用自然语言描述出行需求（如"广州三日游"），AI 自动调用**天气查询**和**POI 检索**工具，生成完整、可执行的行程规划。
+用户用自然语言描述出行需求（如"增城七日游"），AI 自主调用 **4 个工具**——天气查询、POI 检索、网页爬取、知识库检索——生成完整、可执行的行程规划。数据越用越多（POI 自动存库、爬虫内容缓存），次日同一城市秒出结果。
 
 ---
 
@@ -12,31 +12,45 @@
 |------|------|--------|
 | 💬 LLM 对话 | 多轮对话 / 流式打字机 / System Prompt | OpenAI 兼容 API |
 | 🌤️ 天气查询 | 中文城市 / 实时 + 未来 2-3 天 / JSON 结构化 | [wttr.in](https://wttr.in/) |
-| 📍 POI 检索 | 关键词检索 / 双源降级 / 结构化列表 | 腾讯位置服务 → 百度地图 |
-| 🔁 工具调用循环 | 模型自动决策 / 4 轮防死循环 | — |
-| 🎨 Streamlit 前端 | 侧边栏配置 / 工具调用可视化 / 友好 UI | — |
+| 📍 POI 检索 | 关键词检索 / 双源降级 / 结果自动入库 | 腾讯位置服务 → 百度地图 |
+| 📚 知识库检索 | SQLite + FTS5 全文搜索 / 中文 LIKE 降级 | 本地 `src/kb/travel_kb.db` |
+| 🕷️ 网页爬取 | static（HTTP）+ js（Playwright 渲染）双策略 | crawl4ai |
+| 🔁 工具调用循环 | 模型自主决策 / 最大 4 轮 / 工具失败自动注入提醒 | — |
+| 🛡️ 反编造 | 工具失败时禁止 LLM 凭空生成景点/餐厅名 | — |
+| 🎨 Streamlit 前端 | 侧边栏配置 / 地图 Key Web 端输入 / 工具调用可视化 | — |
 
 ---
 
 ## 📂 项目结构
 
 ```
-tra1/
-├── app.py                       # Streamlit 入口（主程序）
-├── requirements.txt            # 依赖清单
-├── .env.example                # 环境变量样例（复制为 .env 后填入 Key）
-├── run.bat                     # Windows 一键启动脚本
-├── README.md                   # 本文档
+├── app.py                       # Streamlit 入口
+├── requirements.txt             # 依赖清单
+├── .env.example                 # 环境变量样例
+├── run.bat                      # Windows 一键启动
+├── README.md
+├── tests/                       # 82 个单元测试
+│   ├── test_config.py
+│   ├── test_agent.py
+│   ├── test_weather.py
+│   ├── test_poi.py
+│   ├── test_tools_init.py
+│   ├── test_kb.py
+│   └── test_new_tools.py
 └── src/
-    ├── __init__.py
-    ├── config.py               # 配置管理（API Key、Base URL、模型名）
-    ├── llm_client.py           # LLM 对话模块（流式、System Prompt、Tool Calls）
-    ├── agent.py                # 工具调用循环 Agent
-    ├── ui.py                   # Streamlit UI 组件
+    ├── config.py                # 8 个服务商预设 + 安全环境变量解析
+    ├── llm_client.py            # 流式 + 非流式 LLM 调用
+    ├── agent.py                 # 多轮工具调用循环 + 错误注入提醒
+    ├── ui.py                    # 侧边栏 + 聊天区 + 工具事件渲染
+    ├── kb/
+    │   ├── __init__.py          # SQLite + FTS5 知识库初始化
+    │   └── store.py             # CRUD / 全文搜索 / SHA256 去重
     └── tools/
-        ├── __init__.py         # 工具注册表
-        ├── weather.py          # get_weather 工具（wttr.in）
-        └── poi.py              # search_poi 工具（腾讯 + 百度双源）
+        ├── __init__.py          # 4 工具注册表
+        ├── weather.py           # get_weather（wttr.in）
+        ├── poi.py               # search_poi（腾讯 → 百度 + 自动存库）
+        ├── crawler.py           # crawl_travel_info（static/js 双策略）
+        └── search_kb.py         # search_knowledge_base（本地知识库）
 ```
 
 ---
@@ -46,145 +60,97 @@ tra1/
 ### 1. 安装依赖
 
 ```bash
-cd <项目根目录>
 pip install -r requirements.txt
 ```
 
-### 2. 配置 API Key
+### 2. 配置
 
-复制 `.env.example` 为 `.env`，并填入你的 API Key：
+地图 API Key **可在 Web 侧边栏直接输入**，无需编辑文件。如需预设默认值：
 
 ```bash
 copy .env.example .env
 ```
 
-**最小可用配置**（只需要 LLM Key 即可体验天气功能）：
 ```ini
-LLM_API_KEY=sk-your-real-key
+LLM_API_KEY=sk-your-real-key          # 必需
 LLM_BASE_URL=https://tokenhub.tencentmaas.com/v1
 LLM_MODEL=kimi-k2.7-code
+
+TENCENT_LBS_KEY=your-key              # 可选（POI），也可在 Web 侧边栏填
+BAIDU_MAP_AK=your-ak                  # 可选（POI 兜底）
 ```
 
-**完整配置**（启用 POI 双源检索）：
-```ini
-LLM_API_KEY=sk-xxx
-TENCENT_LBS_KEY=your-tencent-key    # https://lbs.qq.com/
-BAIDU_MAP_AK=your-baidu-ak          # https://lbsyun.baidu.com/
-```
+### 3. 启动
 
-### 3. 启动应用
+双击 `run.bat` 或：
 
-**方式一：命令行**
 ```bash
 streamlit run app.py
 ```
 
-**方式二：双击脚本**
-双击 `run.bat`
-
-启动后浏览器自动打开 `http://localhost:8501`。
-
----
-
-## 🔑 API Key 获取指引
-
-### LLM 大模型 Key（必需）
-| 服务商 | 申请地址 | 备注 |
-|--------|---------|------|
-| 腾讯 TokenHub MaaS | https://tokenhub.tencentmaas.com/ | 推荐：兼容 OpenAI，支持 GLM/Kimi 等 |
-| OpenAI 官方 | https://platform.openai.com/ | 需要科学上网 |
-| DeepSeek | https://platform.deepseek.com/ | 国内可用、价格低 |
-| 月之暗面 Kimi | https://platform.moonshot.cn/ | 国内可用 |
-
-> 💡 任何 **OpenAI 兼容** 服务均可使用，只需修改 `LLM_BASE_URL` 和 `LLM_MODEL` 即可。
-
-### 腾讯位置服务 Key（可选）
-1. 访问 https://lbs.qq.com/
-2. 注册并创建应用 → 获得 `Key`
-3. 启用「WebService API」→ 勾选「地点搜索」
-
-### 百度地图 Key（可选）
-1. 访问 https://lbsyun.baidu.com/
-2. 注册并创建应用 → 获得 `AK`
-3. 应用类型选择「服务端」
+浏览器打开 `http://localhost:8501`。
 
 ---
 
 ## 💡 使用示例
 
-启动后，在聊天框输入：
-
-- 🌤️ `广州今天天气如何？` → AI 自动查询并展示
-- 📍 `广州有哪些必去景点？` → AI 自动检索景点列表
-- 🧳 `帮我规划广州三日游` → AI 自动综合天气+景点，生成行程
-- 💬 `第二天太热怎么办？` → 多轮对话，上下文保持
-
-侧边栏可调节：Temperature、Max Tokens、清空对话。
+- 🌤️ `广州今天天气如何？`
+- 📍 `广州有哪些必去景点？`
+- 🧳 `帮我规划增城七日游`
+- 💬 `第二天太热了，能换些室内景点吗？`
 
 ---
 
-## 🔄 切换大模型服务商
+## 🏗️ 架构
 
-**启动后在左侧边栏的 "🤖 大模型服务商" 下拉框中选择**，无需修改代码：
+```
+Streamlit UI (app.py, ui.py)
+    ↓
+Agent 工具调用循环 (agent.py) ← LLM 引擎 (llm_client.py)
+    ↓
+工具层 (tools/__init__.py)
+    ├── get_weather           → wttr.in
+    ├── search_poi            → 腾讯 → 百度  → 自动存知识库
+    ├── search_knowledge_base → SQLite + FTS5（本地）
+    └── crawl_travel_info     → crawl4ai（static/js）
+```
 
-| 服务商 | 默认模型 | 备注 |
-|--------|---------|------|
-| 🔵 OpenAI 官方 | gpt-4o-mini | 需要科学上网 |
-| 🟢 DeepSeek | deepseek-chat | 国内可用，性价比高 |
-| 🌙 月之暗面 Kimi | moonshot-v1-8k | 国内可用，长上下文 |
-| 🐯 智谱 GLM | glm-4-flash | 国内可用，**免费** |
-| 🐧 腾讯 TokenHub MaaS | kimi-k2.7-code | 聚合多模型 |
-| 🚀 阿里通义千问 | qwen-plus | 国内可用 |
-| 🅼 MiniMax | MiniMax-Text-01 | OpenAI 兼容 |
-| 🛠️ 自定义 | — | 手动填写 Base URL |
+### 数据闭环
 
-切换后会自动填充对应的 **Base URL** 和**模型列表**，你只需在 API Key 输入框填入对应服务商的密钥即可。
-
----
-
-## 🧪 测试用例
-
-| 用例 | 输入 | 预期行为 |
-|------|------|---------|
-| TC-01 天气 | `广州今天天气如何？` | 调用 get_weather，返回实时+预报 |
-| TC-02 POI | `广州有哪些必去景点？` | 调用 search_poi，返回景点列表 |
-| TC-03 综合 | `广州三日游规划` | 自动串行调用天气+POI，生成行程 |
-| TC-04 多轮 | 追问 `第二天太热怎么办？` | 上下文保持 |
-| TC-05 流式 | 任意输入 | 打字机逐字输出 |
-| TC-06 异常 | `abc天气` | 工具返回错误，AI 友好提示 |
-| TC-07 清空 | 点击清空按钮 | 历史消息清空 |
-| TC-08 降级 | 关闭腾讯 Key | POI 自动切换到百度 |
-
----
-
-## 🏗️ 项目架构
-
-采用经典三层架构：表现层（Streamlit UI）→ 逻辑层（Agent + LLM 引擎）→ 数据层（外部 API 服务）。
-
-| 层级 | 模块 | 职责 |
-|------|------|------|
-| 表现层 | `src/ui.py` + `app.py` | 侧边栏配置、聊天界面、工具调用可视化 |
-| 逻辑层 | `src/agent.py` + `src/llm_client.py` | 多轮对话管理、工具调用循环、流式输出 |
-| 数据层 | `src/tools/weather.py` + `src/tools/poi.py` | wttr.in 天气、腾讯+百度 POI 双源检索 |
+```
+POI 检索成功 → 自动写入 KB
+爬虫抓取成功 → 自动写入 KB
+下次同城市   → KB 直接命中，无需调外部 API
+```
 
 ---
 
 ## ⚠️ 常见问题
 
-**Q1: 启动后侧边栏没显示 API Key 输入框？**
-A: Streamlit 默认记忆 session_state，请刷新浏览器或清空缓存重试。
+**Q1: POI 检索失败？**
+A: 在 Web 侧边栏「🗺️ 地图 API」填入腾讯 LBS Key 或百度 AK。注意腾讯 Key 需在控制台启用「WebService API → 地点搜索」。
 
-**Q2: wttr.in 查询失败？**
-A: 检查网络，或尝试访问 https://wttr.in/ 验证服务是否可用。
+**Q2: 爬虫抓不到内容？**
+A: 部分 SPA 页面（马蜂窝、携程）有反爬。crawl4ai 会自动 static→js 降级，但不保证 100% 成功。百科类页面（baike.baidu.com）稳定可用。
 
-**Q3: POI 检索无结果？**
-A: 检查 `TENCENT_LBS_KEY` / `BAIDU_MAP_AK` 是否正确配置。两家都未配置时工具会返回错误。
+**Q3: wttr.in 查询失败？**
+A: wttr.in 是免费服务偶有故障，AI 会如实告知而不是编造天气数据。
 
-**Q4: LLM 不调用工具？**
-A: 部分模型（如 gpt-3.5-turbo）对工具调用支持较弱，建议使用 `kimi-k2.7-code`、`gpt-4o`、`deepseek-chat` 等。
+**Q4: LLM 不调用工具 / 只用 3 天截断？**
+A: 建议使用 `kimi-k2.7-code`、`deepseek-chat`、`gpt-4o` 等；侧边栏 Max Tokens 可调至 4000+。
+
+---
+
+## 🧪 测试
+
+```bash
+pytest tests/ -v    # 82 个单元测试
+```
+
+覆盖：config、agent、weather、poi、tools 注册表、知识库、爬虫 schema。
 
 ---
 
 ## 📜 License
 
-MIT License - 详见 LICENSE 文件。
+MIT License
