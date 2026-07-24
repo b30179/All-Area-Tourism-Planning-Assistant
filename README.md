@@ -1,5 +1,12 @@
 # 🧳 全域旅游规划助手
 
+[![Python](https://img.shields.io/badge/Python-3.10+-3776AB?style=flat&logo=python&logoColor=white)](https://www.python.org/)
+[![Streamlit](https://img.shields.io/badge/Streamlit-1.32+-FF4B4B?style=flat&logo=streamlit&logoColor=white)](https://streamlit.io/)
+[![License](https://img.shields.io/badge/License-MIT-green?style=flat)](./LICENSE)
+[![Release](https://img.shields.io/badge/Release-v1.0-1ea6d6?style=flat)](#)
+[![Tests](https://img.shields.io/badge/Tests-82%20passed-success?style=flat&logo=pytest)](./tests/)
+[![Crawl4AI](https://img.shields.io/badge/Crawl4AI-0.9.2-orange?style=flat)](https://github.com/unclecode/crawl4ai)
+
 基于 **Streamlit + 大语言模型 + 工具调用 (Function Calling)** 的智能旅游规划 AI Agent。
 
 用户用自然语言描述出行需求（如"增城七日游"），AI 自主调用 **4 个工具**——天气查询、POI 检索、网页爬取、知识库检索——生成完整、可执行的行程规划。数据越用越多（POI 自动存库、爬虫内容缓存），次日同一城市秒出结果。

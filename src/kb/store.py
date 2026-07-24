@@ -2,6 +2,7 @@
 kb/store.py - 知识库 CRUD 与全文搜索
 """
 import hashlib
+import json
 import logging
 from typing import Optional
 from urllib.parse import urlparse
@@ -23,9 +24,11 @@ def _compute_hash(text: str) -> str:
 
 
 def upsert_kb_item(
-    url: str, category: str, title: str, content_md: str, summary: str = ""
+    url: str, category: str, title: str, content_md: str,
+    summary: str = "", images: list | None = None,
 ) -> dict:
     """插入或更新条目（按 content_hash 去重），返回 {"id": int, "is_new": bool}"""
+    images_json = json.dumps(images or [], ensure_ascii=False)
     conn = get_connection()
     content_hash = _compute_hash(content_md)
     source_domain = _extract_domain(url)
@@ -36,8 +39,8 @@ def upsert_kb_item(
 
     if existing:
         conn.execute(
-            "UPDATE kb_items SET crawled_at = datetime('now','localtime') WHERE id = ?",
-            (existing["id"],),
+            "UPDATE kb_items SET crawled_at = datetime('now','localtime'), images = ? WHERE id = ?",
+            (images_json, existing["id"]),
         )
         conn.execute(
             "INSERT INTO kb_crawl_log (url, category, success) VALUES (?, ?, 1)",
@@ -48,9 +51,9 @@ def upsert_kb_item(
         return {"id": existing["id"], "is_new": False}
 
     cursor = conn.execute(
-        """INSERT INTO kb_items (url, category, title, content_md, summary, source_domain, content_hash)
-           VALUES (?, ?, ?, ?, ?, ?, ?)""",
-        (url, category, title, content_md, summary[:500], source_domain, content_hash),
+        """INSERT INTO kb_items (url, category, title, content_md, summary, images, source_domain, content_hash)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+        (url, category, title, content_md, summary[:500], images_json, source_domain, content_hash),
     )
     new_id = cursor.lastrowid
     conn.execute(
@@ -73,7 +76,7 @@ def search_kb(
     try:
         if category:
             rows = conn.execute(
-                f"""SELECT k.id, k.url, k.category, k.title, k.summary, k.content_md,
+                f"""SELECT k.id, k.url, k.category, k.title, k.summary, k.content_md, k.images,
                            k.crawled_at, k.source_domain
                     FROM kb_items k JOIN kb_fts f ON k.id = f.rowid
                     WHERE {fts_query} AND k.category = ?
@@ -82,7 +85,7 @@ def search_kb(
             ).fetchall()
         else:
             rows = conn.execute(
-                f"""SELECT k.id, k.url, k.category, k.title, k.summary, k.content_md,
+                f"""SELECT k.id, k.url, k.category, k.title, k.summary, k.content_md, k.images,
                            k.crawled_at, k.source_domain
                     FROM kb_items k JOIN kb_fts f ON k.id = f.rowid
                     WHERE {fts_query}
@@ -99,14 +102,14 @@ def search_kb(
         like_q = f"%{query}%"
         if category:
             rows = conn.execute(
-                """SELECT id, url, category, title, summary, content_md, crawled_at, source_domain
+                """SELECT id, url, category, title, summary, content_md, images, crawled_at, source_domain
                    FROM kb_items WHERE (title LIKE ? OR content_md LIKE ?) AND category = ?
                    ORDER BY crawled_at DESC LIMIT ?""",
                 (like_q, like_q, category, limit),
             ).fetchall()
         else:
             rows = conn.execute(
-                """SELECT id, url, category, title, summary, content_md, crawled_at, source_domain
+                """SELECT id, url, category, title, summary, content_md, images, crawled_at, source_domain
                    FROM kb_items WHERE title LIKE ? OR content_md LIKE ?
                    ORDER BY crawled_at DESC LIMIT ?""",
                 (like_q, like_q, limit),

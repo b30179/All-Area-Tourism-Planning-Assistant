@@ -28,6 +28,7 @@ def _ensure_schema(conn: sqlite3.Connection):
             title TEXT DEFAULT '',
             content_md TEXT NOT NULL,
             summary TEXT DEFAULT '',
+            images TEXT DEFAULT '[]',
             source_domain TEXT DEFAULT '',
             crawled_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
             content_hash TEXT NOT NULL UNIQUE
@@ -41,6 +42,11 @@ def _ensure_schema(conn: sqlite3.Connection):
             crawled_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
         );
     """)
+    # 兼容旧表：如果 images 列不存在则添加
+    try:
+        conn.execute("ALTER TABLE kb_items ADD COLUMN images TEXT DEFAULT '[]'")
+    except sqlite3.OperationalError:
+        pass
     try:
         conn.execute("""
             CREATE VIRTUAL TABLE IF NOT EXISTS kb_fts USING fts5(
