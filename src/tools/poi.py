@@ -17,6 +17,7 @@ from typing import Any, Dict, List, Optional
 import requests
 
 from src.config import BAIDU_PLACE_URL, TENCENT_PLACE_URL, ToolConfig
+from src.kb.store import upsert_kb_item
 
 logger = logging.getLogger(__name__)
 
@@ -94,6 +95,7 @@ def search_poi(
                 timeout=timeout,
             )
             if result is not None:
+                _save_pois_to_kb(result, query)
                 return json.dumps(result, ensure_ascii=False)
             tencent_reason = "腾讯地图返回空结果（可能该区域无匹配 POI）"
             logger.warning("腾讯 POI 检索返回空，回退到百度地图")
@@ -114,6 +116,7 @@ def search_poi(
                 timeout=timeout,
             )
             if result is not None:
+                _save_pois_to_kb(result, query)
                 return json.dumps(result, ensure_ascii=False)
             baidu_reason = "百度地图返回空结果"
             logger.warning("百度 POI 检索返回空")
@@ -261,6 +264,51 @@ def _format_baidu_poi(r: Dict[str, Any]) -> Dict[str, Any]:
         "category": category,
         "location": {"lat": lat, "lng": lng},
     }
+
+
+# ============================================================
+# POI 结果自动存入知识库
+# ============================================================
+def _save_pois_to_kb(result: dict, query: str) -> None:
+    """将 POI 检索结果自动存入知识库，供后续搜索复用"""
+    pois = result.get("pois", [])
+    region = result.get("region", "")
+    source = result.get("source", "unknown")
+    category = _map_query_to_category(query)
+
+    for poi in pois:
+        name = poi.get("name", "")
+        if not name:
+            continue
+        address = poi.get("address", "")
+        tel = poi.get("tel", "")
+        cat = poi.get("category", "")
+
+        content = f"# {name}\n\n- 地址：{address}\n- 电话：{tel}\n- 类别：{cat}\n- 城市：{region}\n- 来源：{source}"
+        try:
+            upsert_kb_item(
+                url=f"poi://{source}/{region}/{name}",
+                category=category,
+                title=name,
+                content_md=content,
+                summary=f"{name} - {address} ({cat})",
+            )
+        except Exception:
+            pass  # KB 写入失败不影响主流程
+
+
+def _map_query_to_category(query: str) -> str:
+    """将 POI 查询关键词映射到知识库类别"""
+    q = query.lower()
+    if any(kw in q for kw in ["景点", "景区", "公园", "博物馆", "attraction"]):
+        return "attraction"
+    if any(kw in q for kw in ["美食", "餐厅", "火锅", "小吃", "food"]):
+        return "food"
+    if any(kw in q for kw in ["酒店", "住宿", "宾馆", "hotel"]):
+        return "hotel"
+    if any(kw in q for kw in ["交通", "地铁", "公交", "transport"]):
+        return "transport"
+    return "general"
 
 
 # ============================================================
